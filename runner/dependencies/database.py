@@ -1,5 +1,6 @@
 from ..dependency import Dependency
 from ..logger import getLogger
+import os
 class DatabaseDependency(Dependency):
     _description = 'Select a Database to run with'
 
@@ -59,6 +60,7 @@ class DatabaseDependency(Dependency):
                 'POSTGRES_DB': 'moodle',
                 #${DB_SCRIPTS}:/docker-entrypoint-initdb.d
             },
+            'startupscripts': '/docker-entrypoint-initdb.d',
             'tmpfs': {
                 '/var/lib/postgresql/data': '',
             },
@@ -73,9 +75,55 @@ class DatabaseDependency(Dependency):
 
         mapping = self._mapping[args.dbtype].copy()
         mapping['version'] = args.dbversion
+
+        if 'volumes' not in mapping:
+            mapping['volumes'] = {}
+
+        if 'startupscripts' in mapping:
+            mapping['volumes'].update(self.buildCustomisations(args.dbtype, mapping))
+
         container = startClient(__name__, mapping)
         self._containers.append(container)
 
         self.runner.setDependencyParam('dbhost', getContainerAddress(container))
         for key, value in mapping['config'].iteritems():
             self.runner.setDependencyParam(key, value)
+
+    def buildCustomisations(self, dbtype, config):
+        if 'startupscripts' not in config:
+            return {}
+
+        configDir = [
+            'dependencies',
+            'databases',
+            dbtype,
+        ]
+        localConfigDir = [
+            'local',
+            'dependencies',
+            'databases',
+            dbtype
+        ]
+        volumes = {}
+        volumes.update(self.buildCustomisationsFromDir(config['startupscripts'], configDir))
+        volumes.update(self.buildCustomisationsFromDir(config['startupscripts'], localConfigDir))
+
+        return volumes
+
+    def buildCustomisationsFromDir(self, scriptdir, sourcedir):
+        sourcedir = [
+                os.path.dirname(os.path.realpath(__file__)),
+                '..',
+                '..',
+            ] + sourcedir
+        dir = os.path.join(*sourcedir)
+
+        volumes = {}
+        for root, dirs, files in os.walk(dir):
+            for name in files:
+                volumes[os.path.join(root, name)] = {
+                    'bind': os.path.join(scriptdir, name),
+                    'mode': 'ro',
+                }
+
+        return volumes
