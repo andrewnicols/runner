@@ -34,6 +34,12 @@ def startClient(name, args):
     if 'volumes' in args:
         containerargs['volumes'] = args['volumes']
 
+
+    # Fetch the UID of the current user.
+    uid = os.getuid()
+    if uid:
+        containerargs['user'] = os.getuid()
+
     # Start the container.
     image = "%s:%s" % (args['image'], args['version'])
     client = getClient()

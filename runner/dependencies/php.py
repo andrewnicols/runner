@@ -59,13 +59,21 @@ class PhpDependency(Dependency):
             'mode': 'rw',
         }
 
+        # Fetch the UID of the current user.
+        uid = os.getuid()
+        logger.debug("Starting machine as %s" % uid)
+        if uid:
+            containerargs['user'] = uid
+
         container = startClient(__name__, containerargs)
         logger.debug("Started PHP Client")
         self._containers.append(container)
 
-        container.exec_run('mkdir -p /var/www/data/moodle')
-        container.exec_run('mkdir -p /var/www/data/phpunit')
-        container.exec_run('mkdir -p /var/www/data/behat')
+        # Execute as root.
+        container.exec_run('mkdir -p /var/www/data/moodle', user='root')
+        container.exec_run('mkdir -p /var/www/data/phpunit', user='root')
+        container.exec_run('mkdir -p /var/www/data/behat', user='root')
+        container.exec_run('chmod 777 -R /var/www/data/', user='root')
 
         self.runner.setDependencyParam('datadir', '/var/www/data')
         self.runner.setDependencyParam('phphost', getContainerAddress(container))
